@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MUSO Registration System</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --purple: #6d28d9; 
+            --purple-hover: #5b21b6;
+            --success: #16a34a;
+            --dark: #1e293b;
+            --light: #f8fafc;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f1f5f9;
+            margin: 0;
+            padding: 0;
+            color: var(--dark);
+        }
+        header {
+            background-color: var(--primary);
+            color: white;
+            padding: 1rem;
+            text-align: center;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+            position: relative;
+        }
+        .container {
+            max-width: 1100px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+            transition: max-width 0.3s ease;
+        }
+        .card {
+            background: white;
+            padding: 2.5rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+            margin-bottom: 2rem;
+        }
+        
+        /* Form Structure */
+        .form-header-img {
+            display: flex;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+        
+        /* Aesthetic Secret Login Circle */
+        .secret-login-dot {
+            position: absolute;
+            top: 24px;
+            right: 25px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, #fde047, #b45309);
+            box-shadow: 0 0 10px rgba(250, 204, 21, 0.6), inset -2px -2px 4px rgba(0,0,0,0.2);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            z-index: 100;
+        }
+        .secret-login-dot:hover {
+            transform: scale(1.35);
+            box-shadow: 0 0 18px rgba(250, 204, 21, 0.9), inset -2px -2px 4px rgba(0,0,0,0.2);
+        }
+
+        .step-text {
+            font-size: 1.2rem;
+            margin: 0;
+            color: #4c1d95;
+            font-weight: 600;
+        }
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem 2rem;
+        }
+        @media (max-width: 768px) {
+            .form-grid { grid-template-columns: 1fr; }
+        }
+        .form-group {
+            margin-bottom: 0.5rem;
+        }
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            color: #475569;
+        }
+        input, select {
+            width: 100%;
+            padding: 0.8rem;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            box-sizing: border-box;
+            font-size: 1rem;
+        }
+        button {
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+            border-radius: 8px;
+            padding: 1rem 2rem;
+            font-size: 1rem;
+        }
+        .btn-purple {
+            background-color: var(--purple);
+            color: white;
+            float: right;
+            margin-top: 1rem;
+        }
+        .btn-purple:hover { background-color: var(--purple-hover); }
+        .clearfix::after {
+            content: ""; clear: both; display: table;
+        }
+        
+        .btn-success { background-color: var(--success); color: white; }
+        .btn-success:hover { background-color: #15803d; }
+        .btn-danger { background-color: #dc2626; color: white; }
+        .btn-danger:hover { background-color: #b91c1c; }
+        .btn-secondary { background-color: #64748b; color: white; padding: 0.75rem;}
+        .btn-secondary:hover { background-color: #475569; }
+        .btn-sm { padding: 0.5rem 1rem; font-size: 0.85rem; }
+
+        /* Modal Notifications Overlay */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-box {
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+        }
+        .modal-text {
+            font-size: 1.1rem;
+            margin-bottom: 1.5rem;
+            color: var(--dark);
+            font-weight: 500;
+        }
+        .modal-btn {
+            background-color: var(--success);
+            color: white;
+            width: 100%;
+            padding: 0.8rem;
+        }
+
+        /* Toast Notification for Interviewers */
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background-color: #16a34a;
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 6px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transform: translateX(150%);
+            transition: transform 0.4s ease-in-out;
+            z-index: 1100;
+            font-weight: 600;
+        }
+        .toast.show {
+            transform: translateX(0);
+        }
+
+        /* Admin Section */
+        .section-hidden { display: none !important; }
+        .admin-controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            background: #f8fafc;
+            padding: 1rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+        }
+        
+        /* Table Formatting */
+        .table-responsive { overflow-x: auto; }
+        table {
+            width: 100%; border-collapse: collapse; margin-top: 1rem; background: white;
+        }
+        th, td {
+            border: 1px solid #e2e8f0; padding: 0.75rem; text-align: left; font-size: 0.9rem;
+            white-space: nowrap;
+        }
+        th { background-color: #f8fafc; color: var(--dark); text-align: center; }
+        .score-input { width: 60px; padding: 0.3rem; text-align: center; border-radius: 4px; }
+        .score-input:disabled { background-color: #e2e8f0; color: #475569; }
+
+        footer {
+            text-align: center; padding: 2rem; margin-top: 5rem;
+            background-color: #e2e8f0; font-size: 0.9rem;
+        }
+        /* Fixed footnote to not be lined and bolded */
+        .footer-links span {
+            margin: 0 15px; cursor: pointer; color: #475569; text-decoration: none; font-weight: normal;
+        }
+        
+        #tableLegend {
+            margin-bottom: 1rem; font-size: 0.85rem; color: #475569; background: #f8fafc; 
+            padding: 15px; border-radius: 6px; border: 1px solid #e2e8f0; display: none; line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1 id="page-title">MUSO Registration System</h1>
+    <div onclick="promptInterviewer()" class="secret-login-dot" title="Interviewer Login"></div>
+</header>
+
+<div id="systemModal" class="modal-overlay section-hidden">
+    <div class="modal-box">
+        <p id="modalMessage" class="modal-text"></p>
+        <button class="modal-btn" onclick="closeModal()">Sawa, ahsante!</button>
+    </div>
+</div>
+
+<div id="toastNotification" class="toast">Marks saved successfully!</div>
+
+<div class="container">
+    <div id="registration-view" class="card">
+        <div class="form-header-img">
+            <h2 class="step-text">Please enter your details correctly to successfully complete registration process</h2>
+        </div>
+        
+        <form id="registrationForm" class="clearfix">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>FULL NAME *</label>
+                    <input type="text" id="fullName" required value="">
+                </div>
+                <div class="form-group">
+                    <label>REGISTRATION NUMBER *</label>
+                    <input type="text" id="regNumber" required value="">
+                </div>
+                <div class="form-group">
+                    <label>PROGRAMME / COURSE *</label>
+                    <input type="text" id="programme" required value="">
+                </div>
+                <div class="form-group">
+                    <label>YEAR OF STUDY *</label>
+                    <select id="yearOfStudy" required>
+                        <option value="" disabled selected>-- Choose Year --</option>
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>PHONE NUMBER *</label>
+                    <input type="text" id="phoneNum" required value="">
+                </div>
+                <div class="form-group">
+                    <label>SELECT POSITION *</label>
+                    <select id="position" required>
+                        <option value="" disabled selected>-- Choose Position --</option>
+                        <option value="Computer Position">Computer Position</option>
+                        <option value="Welcome Position">Welcome Position</option>
+                    </select>
+                </div>
+            </div>
+            
+            <button type="submit" class="btn-purple">submit</button>
+        </form>
+    </div>
+
+    <div id="portal-view" class="card section-hidden">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h2 id="portal-heading">Admin Dashboard</h2>
+            <button onclick="logout()" class="btn-secondary" style="width: auto;">Exit Panel</button>
+        </div>
+
+        <div id="superadmin-controls" class="section-hidden">
+            <h3>SuperAdmin Configuration Settings</h3>
+            
+            <div class="admin-controls">
+                <div class="form-group">
+                    <label>Set Interviewer Password</label>
+                    <input type="text" id="newInterviewerPass" value="">
+                    <button onclick="updateSettings('pass')" class="btn-secondary btn-sm" style="margin-top:8px;">Save Password</button>
+                </div>
+                <div class="form-group">
+                    <label>Registration Start Time</label>
+                    <input type="datetime-local" id="regStartTime">
+                    <button onclick="updateSettings('start')" class="btn-secondary btn-sm" style="margin-top:8px;">Set Start Time</button>
+                </div>
+                <div class="form-group">
+                    <label>Registration End Time</label>
+                    <input type="datetime-local" id="regEndTime">
+                    <button onclick="updateSettings('end')" class="btn-secondary btn-sm" style="margin-top:8px;">Set End Time</button>
+                </div>
+            </div>
+
+            <div class="admin-controls">
+                <div class="form-group">
+                    <label>Position Setup</label>
+                    <select id="setupPosition">
+                        <option value="Computer Position">Computer Position</option>
+                        <option value="Welcome Position">Welcome Position</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>How many score columns?</label>
+                    <input type="number" id="colAmount" min="1" max="10" value="">
+                </div>
+                <div class="form-group">
+                    <label>Column Names (comma separated)</label>
+                    <input type="text" id="colNames" value="">
+                </div>
+                <div class="form-group" style="display:flex; align-items:end; gap: 10px; flex-wrap: wrap;">
+                    <button onclick="createScoreColumns()" class="btn-success" style="padding: 0.75rem 1rem;">Generate Columns</button>
+                    <button onclick="printNames()" class="btn-purple" style="float:none; margin-top:0; padding: 0.75rem 1rem;">Print Names A4</button>
+                    <button onclick="clearAllData()" class="btn-danger" style="float:none; margin-top:0; padding: 0.75rem 1rem;">Delete All Data</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="adminFilters" class="section-hidden">
+            <h3 style="margin-top: 2rem; color: #1e293b; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem;">Search & Filter Applicants</h3>
+            <div class="admin-controls" style="background: white;">
+                <div class="form-group">
+                    <label>Filter by Name</label>
+                    <input type="text" id="filterName" oninput="renderTable()" placeholder="Type to search..." value="">
+                </div>
+                <div class="form-group">
+                    <label>Filter by Position</label>
+                    <select id="filterPosition" onchange="renderTable()">
+                        <option value="All">All Positions</option>
+                        <option value="Computer Position">Computer Position</option>
+                        <option value="Welcome Position">Welcome Position</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div id="tableLegend"></div>
+        <div class="table-responsive">
+            <table id="applicantsTable">
+                <thead>
+                    </thead>
+                <tbody id="applicantsBody">
+                    </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<footer>
+    <div class="footer-links">
+        <span onclick="promptSuperAdmin()">All rights reserved, a product by RishedKassimu</span>
+    </div>
+</footer>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+    import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyBwxClwEiH6Gm_2lPquWeBJuqK4SOfI9jk",
+      authDomain: "interview-8ca72.firebaseapp.com",
+      projectId: "interview-8ca72",
+      storageBucket: "interview-8ca72.firebasestorage.app",
+      messagingSenderId: "692697536483",
+      appId: "1:692697536483:web:7ee50288b98029ea8b72d6"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    window.syncToFirebase = function(applicantsData, configData) {
+        setDoc(doc(db, "MUSO_System", "DatabaseState"), {
+            applicants: applicantsData,
+            config: configData
+        }).catch(err => console.error("Firebase Sync Error: ", err));
+    };
+
+    getDoc(doc(db, "MUSO_System", "DatabaseState")).then((docSnap) => {
+        if (docSnap.exists()) {
+            const cloudData = docSnap.data();
+            
+            if (cloudData.applicants) {
+                window.applicants = cloudData.applicants;
+                localStorage.setItem('applicants', JSON.stringify(cloudData.applicants));
+            }
+            if (cloudData.config) {
+                window.config = cloudData.config;
+                localStorage.setItem('sysConfig', JSON.stringify(cloudData.config));
+                
+                document.getElementById('newInterviewerPass').value = cloudData.config.interviewerPass;
+                if(cloudData.config.startTime) document.getElementById('regStartTime').value = cloudData.config.startTime;
+                if(cloudData.config.endTime) document.getElementById('regEndTime').value = cloudData.config.endTime;
+            }
+            
+            if (typeof window.renderTable === 'function') {
+                window.renderTable();
+            }
+        }
+    }).catch(err => console.log("System running on LocalStorage backup."));
+</script>
+
+<script>
+    window.applicants = JSON.parse(localStorage.getItem('applicants')) || [];
+    
+    window.config = JSON.parse(localStorage.getItem('sysConfig')) || {
+        interviewerPass: "interviewer123",
+        superadminPass: "admin123",
+        startTime: "",
+        endTime: "",
+        columns: {
+            "Computer Position": [],
+            "Welcome Position": []
+        }
+    };
+
+    let currentRole = 'applicant'; 
+
+    document.getElementById('newInterviewerPass').value = window.config.interviewerPass;
+    if(window.config.startTime) document.getElementById('regStartTime').value = window.config.startTime;
+    if(window.config.endTime) document.getElementById('regEndTime').value = window.config.endTime;
+
+    function saveDatabaseState() {
+        localStorage.setItem('applicants', JSON.stringify(window.applicants));
+        localStorage.setItem('sysConfig', JSON.stringify(window.config));
+        
+        if (typeof window.syncToFirebase === 'function') {
+            window.syncToFirebase(window.applicants, window.config);
+        }
+    }
+
+    function showModal(message) {
+        document.getElementById('modalMessage').innerText = message;
+        document.getElementById('systemModal').classList.remove('section-hidden');
+    }
+    function closeModal() {
+        document.getElementById('systemModal').classList.add('section-hidden');
+    }
+
+    function showToast(message) {
+        const toast = document.getElementById('toastNotification');
+        toast.innerText = message;
+        toast.classList.add('show');
+        setTimeout(() => { toast.classList.remove('show'); }, 10000); 
+    }
+
+    function updateSettings(type) {
+        if (type === 'pass') {
+            window.config.interviewerPass = document.getElementById('newInterviewerPass').value;
+            alert("Interviewer Password Updated!");
+        } else if (type === 'start') {
+            window.config.startTime = document.getElementById('regStartTime').value;
+            alert("Start Time Set!");
+        } else if (type === 'end') {
+            window.config.endTime = document.getElementById('regEndTime').value;
+            alert("End Time Set!");
+        }
+        saveDatabaseState();
+    }
+    
+    function clearAllData() {
+        if(confirm("ONYO/WARNING: Unaenda kufuta taarifa zote za waombaji. Je, una uhakika?")) {
+            window.applicants = [];
+            saveDatabaseState();
+            renderTable();
+            alert("Taarifa zote zimefutwa kikamilifu.");
+        }
+    }
+
+    function printNames() {
+        const printWindow = window.open('', '_blank');
+        let names = window.applicants.map(a => a.name);
+        let totalNames = names.length;
+        let namesPerPage = 40; 
+        let totalPages = Math.ceil(totalNames / namesPerPage);
+
+        let html = `<!DOCTYPE html>
+        <html>
+        <head>
+            <title>Applicants List Printout</title>
+            <style>
+                @page { size: A4; margin: 20mm; }
+                body { font-family: 'Segoe UI', sans-serif; font-size: 14pt; color: #1e293b; display: flex; flex-direction: column; min-height: 100vh; margin: 0; }
+                .content { flex: 1; }
+                h2 { text-align: center; border-bottom: 2px solid #2563eb; padding-bottom: 10px; }
+                .info { font-weight: bold; margin-bottom: 20px; text-align: center; color: #475569; }
+                ol { margin: 0; padding-left: 40px; }
+                li { margin-bottom: 8px; border-bottom: 1px dashed #cbd5e1; padding-bottom: 4px;}
+                .print-footer { text-align: center; padding: 15px 0; font-size: 10pt; color: #475569; border-top: 1px solid #cbd5e1; position: fixed; bottom: 0; width: 100%; }
+            </style>
+        </head>
+        <body>
+            <div class="content">
+                <h2>MUSO Registration - Applicants List</h2>
+                <div class="info">Total Enrolled Names: ${totalNames} &nbsp;|&nbsp; Estimated Pages: ${totalPages}</div>
+                <ol>
+        `;
+        
+        names.forEach((name) => { html += `<li>${name}</li>`; });
+        
+        html += `
+                </ol>
+            </div>
+            <div class="print-footer">All rights reserved, a product by RishedKassimu</div>
+        </body>
+        </html>`;
+        
+        printWindow.document.write(html);
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => { 
+            printWindow.print(); 
+            printWindow.close(); 
+        }, 500);
+    }
+
+    document.getElementById('registrationForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        let now = new Date();
+        let start = window.config.startTime ? new Date(window.config.startTime) : null;
+        let end = window.config.endTime ? new Date(window.config.endTime) : null;
+
+        if (start && now < start) {
+            showModal("Tafadhali, hatuwezi kupokea maombi yako, mda wa usajili bado haujafika");
+            return;
+        }
+        if (end && now > end) {
+            showModal("Tafadhali hatuwezi kupokea maombi yako kwasababu umechelewa kufanya maombi");
+            return;
+        }
+        
+        const newApplicant = {
+            id: Date.now(),
+            name: document.getElementById('fullName').value,
+            regNo: document.getElementById('regNumber').value,
+            programme: document.getElementById('programme').value,
+            year: document.getElementById('yearOfStudy').value,
+            phone: document.getElementById('phoneNum').value,
+            position: document.getElementById('position').value,
+            marks: {} 
+        };
+
+        window.applicants.push(newApplicant);
+        saveDatabaseState();
+
+        showModal("Hongera, maombi yako yamepokelewa na unaombwa kuhudhuria interview pindi serikali itakapotangaza");
+
+        this.reset();
+        document.getElementById('fullName').value = '';
+        document.getElementById('regNumber').value = '';
+        document.getElementById('programme').value = '';
+        document.getElementById('yearOfStudy').value = '';
+        document.getElementById('phoneNum').value = '';
+        document.getElementById('position').value = '';
+        
+        window.scrollTo(0,0);
+        
+        if(currentRole !== 'applicant') renderTable();
+    });
+
+    window.promptInterviewer = function() {
+        const pass = prompt("Enter Interviewer Password:");
+        if (pass === window.config.interviewerPass) {
+            currentRole = 'interviewer';
+            switchView('portal');
+        } else if (pass !== null) {
+            alert("Wrong Interviewer password!");
+        }
+    };
+
+    window.promptSuperAdmin = function() {
+        const pass = prompt("Enter SuperAdmin Password:");
+        if (pass === window.config.superadminPass) {
+            currentRole = 'superadmin';
+            switchView('portal');
+        } else if (pass !== null) {
+            alert("Wrong SuperAdmin password!");
+        }
+    };
+
+    function switchView(view) {
+        if (view === 'portal') {
+            document.getElementById('registration-view').classList.add('section-hidden');
+            document.getElementById('portal-view').classList.remove('section-hidden');
+            
+            // Search filters are explicitly shown to both roles now
+            document.getElementById('adminFilters').classList.remove('section-hidden');
+            
+            if (currentRole === 'superadmin') {
+                document.getElementById('portal-heading').innerText = "SuperAdmin System Workspace";
+                document.getElementById('superadmin-controls').classList.remove('section-hidden');
+                document.querySelector('.container').style.maxWidth = '1100px'; 
+                document.querySelector('.table-responsive').style.overflowX = 'auto';
+            } else {
+                document.getElementById('portal-heading').innerText = "Interviewer Entry Scoring Matrix";
+                document.getElementById('superadmin-controls').classList.add('section-hidden');
+                document.querySelector('.container').style.maxWidth = '100%';
+                document.querySelector('.table-responsive').style.overflowX = 'visible';
+            }
+            renderTable();
+        } else {
+            document.getElementById('registration-view').classList.remove('section-hidden');
+            document.getElementById('portal-view').classList.add('section-hidden');
+            document.querySelector('.container').style.maxWidth = '1100px';
+            currentRole = 'applicant';
+        }
+    }
+
+    window.logout = function() { switchView('registration'); };
+
+    function createScoreColumns() {
+        const pos = document.getElementById('setupPosition').value;
+        const amount = parseInt(document.getElementById('colAmount').value);
+        const rawNames = document.getElementById('colNames').value;
+
+        if(!amount || !rawNames) {
+            alert("Please provide the amount of columns and their names.");
+            return;
+        }
+
+        let namesArr = rawNames.split(',').map(n => n.trim()).filter(n => n.length > 0);
+        let finalCols = [];
+        for(let i=0; i<amount; i++) {
+            finalCols.push(namesArr[i] || `Col ${i + 1}`);
+        }
+
+        window.config.columns[pos] = finalCols;
+        saveDatabaseState();
+        alert(`Columns added for ${pos}!`);
+        renderTable();
+    }
+
+    window.renderTable = function() {
+        const filterName = document.getElementById('filterName').value.toLowerCase();
+        const filterPos = document.getElementById('filterPosition').value;
+        const tableHead = document.querySelector('#applicantsTable thead');
+        const tableBody = document.getElementById('applicantsBody');
+        const legendDiv = document.getElementById('tableLegend');
+
+        let processedApplicants = window.applicants.map(app => {
+            const cols = window.config.columns[app.position] || [];
+            let totalMarks = 0;
+            let possibleMax = cols.length * 100;
+
+            cols.forEach((_, index) => {
+                let mark = parseFloat(app.marks[index]) || 0;
+                totalMarks += mark;
+            });
+
+            let percentage = possibleMax > 0 ? ((totalMarks / possibleMax) * 100).toFixed(1) : "0.0";
+            return { ...app, totalMarks, percentage: parseFloat(percentage) };
+        });
+
+        processedApplicants.sort((a, b) => b.percentage - a.percentage);
+
+        tableHead.innerHTML = '';
+        tableBody.innerHTML = '';
+
+        let headerRow = `
+            <tr>
+                <th style="text-align:left">Rank</th>
+                <th style="text-align:left">Full Name & Details</th>
+                <th style="text-align:left">Position Requested</th>
+        `;
+        
+        let legendHTML = "<strong>TABLE KEY (Abbreviations translation):</strong><br>";
+        let charCode = 65; 
+        
+        let compHeaders = window.config.columns["Computer Position"].map(c => {
+            let char = String.fromCharCode(charCode++);
+            legendHTML += `<span style="margin-right: 20px; display: inline-block;"><strong>${char}</strong> = ${c} (Computer)</span>`;
+            return `<th style="background:#eff6ff" title="${c}">${char}</th>`;
+        }).join('');
+        
+        let welHeaders = window.config.columns["Welcome Position"].map(c => {
+            let char = String.fromCharCode(charCode++);
+            legendHTML += `<span style="margin-right: 20px; display: inline-block;"><strong>${char}</strong> = ${c} (Welcome)</span>`;
+            return `<th style="background:#fef2f2" title="${c}">${char}</th>`;
+        }).join('');
+        
+        if(window.config.columns["Computer Position"].length > 0 || window.config.columns["Welcome Position"].length > 0) {
+            legendDiv.style.display = 'block';
+            legendDiv.innerHTML = legendHTML;
+        } else {
+            legendDiv.style.display = 'none';
+        }
+        
+        headerRow += compHeaders + welHeaders + `<th>Total Score</th><th>Percentage</th><th>Action</th></tr>`;
+        tableHead.innerHTML = headerRow;
+
+        let displayIndex = 1;
+        processedApplicants.forEach(app => {
+            // Filters matching checks now process cleanly for both role workspaces
+            if(currentRole === 'superadmin' || currentRole === 'interviewer') {
+                if(filterName && !app.name.toLowerCase().includes(filterName)) return;
+                if(filterPos !== 'All' && app.position !== filterPos) return;
+            }
+
+            let isComp = app.position === "Computer Position";
+            
+            let rowHtml = `
+                <tr>
+                    <td><strong>#${displayIndex++}</strong></td>
+                    <td>
+                        <strong>${app.name}</strong><br>
+                        <small>${app.regNo} | ${app.programme} (Y${app.year})</small>
+                    </td>
+                    <td><em style="color:var(--primary)">${app.position}</em></td>
+            `;
+
+            window.config.columns["Computer Position"].forEach((_, idx) => {
+                let currentVal = app.marks[idx] !== undefined ? app.marks[idx] : '';
+                if (isComp) {
+                    let isDisabled = (currentRole === 'interviewer' && currentVal !== '') ? 'disabled' : '';
+                    rowHtml += `<td><input type="number" min="0" max="100" class="score-input input-app-${app.id}" data-idx="${idx}" value="${currentVal}" ${isDisabled}></td>`;
+                } else {
+                    rowHtml += `<td><input type="text" class="score-input" value="-" disabled></td>`;
+                }
+            });
+
+            window.config.columns["Welcome Position"].forEach((_, idx) => {
+                let currentVal = app.marks[idx] !== undefined ? app.marks[idx] : '';
+                if (!isComp) {
+                    let isDisabled = (currentRole === 'interviewer' && currentVal !== '') ? 'disabled' : '';
+                    rowHtml += `<td><input type="number" min="0" max="100" class="score-input input-app-${app.id}" data-idx="${idx}" value="${currentVal}" ${isDisabled}></td>`;
+                } else {
+                    rowHtml += `<td><input type="text" class="score-input" value="-" disabled></td>`;
+                }
+            });
+
+            rowHtml += `
+                <td style="text-align: center;"><strong>${app.totalMarks}</strong></td>
+                <td style="text-align: center;"><span style="color:var(--success); font-weight:bold">${app.percentage}%</span></td>
+                <td style="text-align: center;">
+                    <button class="btn-success btn-sm" onclick="saveRowMarks(${app.id})">Hifadhi</button>
+                </td>
+            </tr>`;
+            
+            tableBody.insertAdjacentHTML('beforeend', rowHtml);
+        });
+    };
+
+    window.saveRowMarks = function(applicantId) {
+        const inputs = document.querySelectorAll(`.input-app-${applicantId}:not(:disabled)`);
+        let changesMade = false;
+        
+        let targetApplicant = window.applicants.find(a => a.id === applicantId);
+        if(!targetApplicant) return;
+
+        inputs.forEach(input => {
+            const idx = input.dataset.idx;
+            const val = input.value;
+
+            if(idx !== undefined && val !== '') {
+                targetApplicant.marks[idx] = val;
+                changesMade = true;
+            }
+        });
+
+        if (changesMade || currentRole === 'superadmin') {
+            saveDatabaseState();
+            renderTable(); 
+            showToast("Taarifa za alama zimehifadhiwa kikamilifu!");
+        }
+    };
+</script>
+
+</body>
+</html>
