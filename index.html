@@ -215,6 +215,55 @@
             margin: 0 15px; cursor: pointer; color: #475569; text-decoration: none; font-weight: normal;
         }
         
+        /* Firebase Auth Login Modal */
+        .auth-modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.55);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+        .auth-modal-box {
+            background: white;
+            padding: 2rem 2.5rem;
+            border-radius: 12px;
+            max-width: 380px;
+            width: 92%;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+        }
+        .auth-modal-title {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--dark);
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+        .auth-modal-box label {
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #475569;
+            margin-bottom: 0.4rem;
+        }
+        .auth-modal-box input {
+            margin-bottom: 1rem;
+        }
+        .auth-error {
+            color: #dc2626;
+            font-size: 0.85rem;
+            margin-bottom: 0.75rem;
+            text-align: center;
+            min-height: 1.2rem;
+        }
+        .auth-btn-row {
+            display: flex;
+            gap: 0.75rem;
+            margin-top: 0.5rem;
+        }
+        .auth-btn-row button { flex: 1; }
+
         #tableLegend {
             margin-bottom: 1rem; font-size: 0.85rem; color: #475569; background: #f8fafc; 
             padding: 15px; border-radius: 6px; border: 1px solid #e2e8f0; display: none; line-height: 1.6;
@@ -225,13 +274,29 @@
 
 <header>
     <h1 id="page-title">MUSO Registration System</h1>
-    <div onclick="promptInterviewer()" class="secret-login-dot" title="Interviewer Login"></div>
+    <div onclick="openStaffLogin()" class="secret-login-dot" title="STAFF"></div>
 </header>
 
 <div id="systemModal" class="modal-overlay section-hidden">
     <div class="modal-box">
         <p id="modalMessage" class="modal-text"></p>
         <button class="modal-btn" onclick="closeModal()">Sawa, ahsante!</button>
+    </div>
+</div>
+
+<!-- Firebase Auth Login Modal -->
+<div id="authModal" class="auth-modal-overlay section-hidden">
+    <div class="auth-modal-box">
+        <p id="authModalTitle" class="auth-modal-title">STAFF Login</p>
+        <label id="authEmailLabel" class="section-hidden">Email</label>
+        <input type="email" id="authEmail" placeholder="Enter your email" autocomplete="username" class="section-hidden">
+        <label>Password</label>
+        <input type="password" id="authPassword" placeholder="Enter password" autocomplete="current-password">
+        <div id="authError" class="auth-error"></div>
+        <div class="auth-btn-row">
+            <button class="btn-secondary" onclick="closeAuthModal()">Cancel</button>
+            <button class="btn-purple" id="authSubmitBtn" onclick="submitLogin()" style="float:none; margin-top:0;">Login</button>
+        </div>
     </div>
 </div>
 
@@ -366,13 +431,14 @@
 
 <footer>
     <div class="footer-links">
-        <span onclick="promptSuperAdmin()">All rights reserved, a product by RishedKassimu</span>
+        <span onclick="openAdminLogin()">All rights reserved, a product by RishedKassimu</span>
     </div>
 </footer>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
     import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+    import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyBwxClwEiH6Gm_2lPquWeBJuqK4SOfI9jk",
@@ -385,6 +451,20 @@
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
+    const auth = getAuth(app);
+
+    const ADMIN_EMAIL = "rishedkassimu@gmail.com";
+
+    // Expose Firebase login function globally so non-module script can call it
+    window._firebaseLoginFn = async function(email, password) {
+        const userCred = await signInWithEmailAndPassword(auth, email, password);
+        const userEmail = userCred.user.email.toLowerCase();
+        if (userEmail === ADMIN_EMAIL.toLowerCase()) {
+            return 'superadmin';
+        } else {
+            return 'interviewer';
+        }
+    };
 
     window.syncToFirebase = function(applicantsData, configData) {
         setDoc(doc(db, "MUSO_System", "DatabaseState"), {
@@ -576,23 +656,99 @@
         if(currentRole !== 'applicant') renderTable();
     });
 
-    window.promptInterviewer = function() {
-        const pass = prompt("Enter Interviewer Password:");
-        if (pass === window.config.interviewerPass) {
-            currentRole = 'interviewer';
-            switchView('portal');
-        } else if (pass !== null) {
-            alert("Wrong Interviewer password!");
-        }
+    // Auth modal state
+    let _authModalIntent = 'staff'; // 'staff' or 'admin'
+
+    window.openStaffLogin = function() {
+        _authModalIntent = 'staff';
+        document.getElementById('authModalTitle').innerText = 'STAFF Login';
+        document.getElementById('authEmail').classList.add('section-hidden');
+        document.getElementById('authEmailLabel').classList.add('section-hidden');
+        document.getElementById('authPassword').value = '';
+        document.getElementById('authError').innerText = '';
+        document.getElementById('authModal').classList.remove('section-hidden');
+        setTimeout(() => document.getElementById('authPassword').focus(), 100);
     };
 
-    window.promptSuperAdmin = function() {
-        const pass = prompt("Enter SuperAdmin Password:");
-        if (pass === window.config.superadminPass) {
-            currentRole = 'superadmin';
-            switchView('portal');
-        } else if (pass !== null) {
-            alert("Wrong SuperAdmin password!");
+    window.openAdminLogin = function() {
+        _authModalIntent = 'admin';
+        document.getElementById('authModalTitle').innerText = 'Admin Login';
+        document.getElementById('authEmail').classList.remove('section-hidden');
+        document.getElementById('authEmailLabel').classList.remove('section-hidden');
+        document.getElementById('authEmail').value = '';
+        document.getElementById('authPassword').value = '';
+        document.getElementById('authError').innerText = '';
+        document.getElementById('authModal').classList.remove('section-hidden');
+        setTimeout(() => document.getElementById('authEmail').focus(), 100);
+    };
+
+    window.closeAuthModal = function() {
+        document.getElementById('authModal').classList.add('section-hidden');
+    };
+
+    // Allow Enter key to submit login
+    document.getElementById('authPassword').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') submitLogin();
+    });
+
+    window.submitLogin = async function() {
+        const password = document.getElementById('authPassword').value;
+        const errorEl = document.getElementById('authError');
+        const submitBtn = document.getElementById('authSubmitBtn');
+        errorEl.innerText = '';
+
+        if (_authModalIntent === 'staff') {
+            // Staff uses the password set by SuperAdmin in config
+            if (!password) {
+                errorEl.innerText = 'Please enter the staff password.';
+                return;
+            }
+            if (password === window.config.interviewerPass) {
+                currentRole = 'interviewer';
+                closeAuthModal();
+                switchView('portal');
+            } else {
+                errorEl.innerText = 'Wrong staff password. Please try again.';
+            }
+        } else {
+            // Admin uses Firebase Authentication
+            const email = document.getElementById('authEmail').value.trim();
+            if (!email || !password) {
+                errorEl.innerText = 'Please enter both email and password.';
+                return;
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.innerText = 'Signing in...';
+
+            try {
+                if (typeof window._firebaseLoginFn !== 'function') {
+                    throw new Error("Authentication service not ready. Please refresh the page.");
+                }
+                const role = await window._firebaseLoginFn(email, password);
+                if (role !== 'superadmin') {
+                    errorEl.innerText = 'Access denied. Only the admin account can login here.';
+                    return;
+                }
+                currentRole = 'superadmin';
+                closeAuthModal();
+                switchView('portal');
+            } catch (err) {
+                let msg = 'Login failed. Please check your credentials.';
+                if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+                    msg = 'Invalid email or password.';
+                } else if (err.code === 'auth/invalid-email') {
+                    msg = 'Please enter a valid email address.';
+                } else if (err.code === 'auth/too-many-requests') {
+                    msg = 'Too many attempts. Please try again later.';
+                } else if (err.message) {
+                    msg = err.message;
+                }
+                errorEl.innerText = msg;
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerText = 'Login';
+            }
         }
     };
 
