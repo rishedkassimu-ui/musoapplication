@@ -349,6 +349,24 @@
             <button onclick="logout()" class="btn-secondary" style="width: auto;">Exit Panel</button>
         </div>
 
+        <div id="sheetSyncPanel" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.25rem 1.5rem; margin-bottom: 1.5rem;">
+            <h3 style="margin-top: 0; color: #1e293b; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem;">Google Form Responses Sync</h3>
+            <p style="font-size: 0.85rem; color: #64748b; margin-top: 0;">Paste the Google Sheet link where Form responses are collected (must be shared as "Anyone with the link can view"). New responses will be added as applicants without touching marks already entered.</p>
+            <div class="form-grid" style="grid-template-columns: 3fr 1fr 1fr; align-items: end;">
+                <div class="form-group">
+                    <label>Google Sheet Link</label>
+                    <input type="text" id="sheetUrlInput" placeholder="https://docs.google.com/spreadsheets/d/....../edit#gid=......" value="">
+                </div>
+                <div class="form-group">
+                    <button class="btn-secondary" style="width:100%;" onclick="saveSheetUrl()">Save Link</button>
+                </div>
+                <div class="form-group">
+                    <button class="btn-purple" style="width:100%; margin-top:0;" onclick="syncGoogleSheet()">Sync Now</button>
+                </div>
+            </div>
+            <div id="syncStatus" style="font-size: 0.85rem; color: #475569; margin-top: 0.5rem;"></div>
+        </div>
+
         <div id="adminFilters">
             <h3 style="margin-top: 0; color: #1e293b; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem;">Search & Filter Applicants</h3>
             <div class="admin-controls" style="background: white;">
@@ -541,7 +559,12 @@
             document.getElementById('portal-view').classList.remove('section-hidden');
             document.querySelector('.container').style.maxWidth = '100%';
             document.querySelector('.table-responsive').style.overflowX = 'visible';
+            document.getElementById('sheetUrlInput').value = window.config.sheetCsvUrl || '';
             renderTable();
+            // Auto-sync silently in the background every time staff open the portal
+            if (window.config.sheetCsvUrl) {
+                syncGoogleSheet(true);
+            }
         } else {
             document.getElementById('registration-view').classList.remove('section-hidden');
             document.getElementById('portal-view').classList.add('section-hidden');
@@ -616,10 +639,11 @@
             if(filterPos !== 'All' && app.position !== filterPos) return;
 
             let isComp = app.position === "Computer Position";
+            let reasonAttr = app.reason ? ` title="${app.reason.replace(/"/g, '&quot;')}"` : '';
             let rowHtml = `<tr>
                 <td><strong>#${displayIndex++}</strong></td>
-                <td>
-                    <strong>${app.name}</strong><br>
+                <td${reasonAttr}>
+                    <strong>${app.name}</strong>${app.source === 'GoogleForm' ? ' <span style="font-size:0.65rem;color:#0ea5e9;">(Form)</span>' : ''}<br>
                     <small>${app.regNo} | ${app.programme} (Y${app.year})</small>
                 </td>
                 <td><em style="color:var(--primary)">${app.position}</em></td>`;
@@ -674,6 +698,197 @@
             saveDatabaseState();
             renderTable();
             showToast("Taarifa za alama zimehifadhiwa kikamilifu!");
+        }
+    };
+
+    // ===================== GOOGLE FORM / SHEETS SYNC =====================
+
+    // Maps the Swahili Google Form column headers (as they appear in the
+    // response Sheet) to the applicant fields used by this system.
+    const SHEET_HEADER_MAP = {
+        'JINA KAMILI': 'name',
+        'NAMBA YA USAJILI': 'regNo',
+        'PROGRAM UNAYOSOMA': 'programme',
+        'MWAKA WA MASOMO': 'year',
+        'NAMBA YA SIMU': 'phone',
+        'NAFASI UNAYOOMBA': 'positionRaw',
+        'KWANINI UNAOMBA NAFASI HII': 'reason',
+        'TIMESTAMP': 'timestamp'
+    };
+
+    function normalizeHeader(h) {
+        return (h || '').replace(/\uFEFF/g, '').trim().toUpperCase();
+    }
+
+    // Converts the position text chosen on the Google Form into the exact
+    // position labels this system already understands.
+    function mapSheetPosition(raw) {
+        const r = (raw || '').trim().toUpperCase();
+        if (r.includes('KOMPYUTA') || r.includes('COMPUTER')) return 'Computer Position';
+        if (r.includes('MAPOKEZI') || r.includes('WELCOME')) return 'Welcome Position';
+        return (raw || '').trim();
+    }
+
+    // Turns a normal Google Sheets URL (the one you see in your browser
+    // while editing) into a CSV link that can actually be fetch()'d
+    // cross-origin from JavaScript. The plain "/export?format=csv" link
+    // does NOT send CORS headers and will always fail when called via
+    // fetch() from a webpage (local or hosted) - it only works when a
+    // human navigates to it directly in the address bar. The Google
+    // Visualization "gviz/tq" endpoint below is meant for external/public
+    // consumption and does support fetch().
+    function toCsvExportUrl(url) {
+        try {
+            if (/output=csv/.test(url) || /\/pub\?/.test(url) || /gviz\/tq/.test(url)) return url;
+            const idMatch = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
+            const gidMatch = url.match(/[?#&]gid=([0-9]+)/);
+            if (idMatch) {
+                const id = idMatch[1];
+                const gid = gidMatch ? gidMatch[1] : '0';
+                return `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&gid=${gid}`;
+            }
+        } catch (e) { /* fall through */ }
+        return url;
+    }
+
+    // Minimal RFC4180-style CSV parser (handles quoted fields, embedded
+    // commas, embedded newlines and escaped quotes).
+    function parseCSV(str) {
+        const rows = [];
+        let row = [];
+        let field = '';
+        let inQuotes = false;
+        for (let i = 0; i < str.length; i++) {
+            const c = str[i];
+            const next = str[i + 1];
+            if (inQuotes) {
+                if (c === '"' && next === '"') { field += '"'; i++; }
+                else if (c === '"') { inQuotes = false; }
+                else { field += c; }
+            } else {
+                if (c === '"') { inQuotes = true; }
+                else if (c === ',') { row.push(field); field = ''; }
+                else if (c === '\r') { /* ignore, \n handles the break */ }
+                else if (c === '\n') { row.push(field); field = ''; rows.push(row); row = []; }
+                else { field += c; }
+            }
+        }
+        if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }
+        return rows.filter(r => r.length > 0);
+    }
+
+    window.saveSheetUrl = function () {
+        const val = document.getElementById('sheetUrlInput').value.trim();
+        if (!val) {
+            showModal('Please paste the Google Sheet link first.');
+            return;
+        }
+        window.config.sheetCsvUrl = val;
+        saveDatabaseState();
+        showToast('Google Sheet link saved.');
+    };
+
+    // Pulls the latest Google Form responses from the linked Sheet and adds
+    // any applicant that isn't already in the system yet. Existing
+    // applicants (and any marks already entered for them) are left
+    // untouched. Pass silent=true to skip the pop-up modal on errors
+    // (used for the automatic background sync).
+    window.syncGoogleSheet = async function (silent) {
+        const rawUrl = (window.config.sheetCsvUrl || document.getElementById('sheetUrlInput').value || '').trim();
+        const statusEl = document.getElementById('syncStatus');
+        if (!rawUrl) {
+            if (!silent) showModal('Tafadhali weka link ya Google Sheet kwanza.');
+            return;
+        }
+        // Common mistake: pasting the Google FORM link (forms.gle / .../viewform)
+        // instead of the Google SHEET link where responses are collected.
+        if (/forms\.gle/i.test(rawUrl) || /docs\.google\.com\/forms/i.test(rawUrl)) {
+            const msg = 'Hii ni link ya FORM, sio ya SHEET. Fungua Form -> tab ya "Responses" -> bonyeza icon ya kijani ya Sheets ("View responses in Sheets") -> copy link ya Sheet inayofunguka (docs.google.com/spreadsheets/...) -> paste hapa.';
+            if (statusEl) statusEl.innerText = msg;
+            if (!silent) showModal(msg);
+            return;
+        }
+        if (!/docs\.google\.com\/spreadsheets/i.test(rawUrl) && !/output=csv/i.test(rawUrl)) {
+            const msg = 'Link hii siyo ya Google Sheet. Tafadhali paste link inayoanza na https://docs.google.com/spreadsheets/...';
+            if (statusEl) statusEl.innerText = msg;
+            if (!silent) showModal(msg);
+            return;
+        }
+
+        const csvUrl = toCsvExportUrl(rawUrl);
+        if (statusEl) statusEl.innerText = 'Inasoma taarifa kutoka Google Sheet...';
+
+        try {
+            const res = await fetch(csvUrl, { cache: 'no-store' });
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const text = await res.text();
+            const rows = parseCSV(text);
+
+            if (rows.length < 2) {
+                if (statusEl) statusEl.innerText = 'Hakuna majibu bado kwenye Sheet hii.';
+                return;
+            }
+
+            const headers = rows[0].map(normalizeHeader);
+            const colIndex = {};
+            headers.forEach((h, i) => { if (SHEET_HEADER_MAP[h]) colIndex[SHEET_HEADER_MAP[h]] = i; });
+
+            const getCell = (row, key) => (colIndex[key] !== undefined && row[colIndex[key]] !== undefined) ? row[colIndex[key]].trim() : '';
+
+            const existingKeys = new Set(window.applicants.map(a =>
+                ((a.regNo && a.regNo.trim()) || (a.name + '|' + a.phone)).toUpperCase()
+            ));
+
+            let added = 0, skipped = 0;
+            for (let r = 1; r < rows.length; r++) {
+                const row = rows[r];
+                if (!row || row.every(c => !c || !c.trim())) continue;
+
+                const name = getCell(row, 'name');
+                if (!name) continue;
+
+                const regNo = getCell(row, 'regNo');
+                const phone = getCell(row, 'phone');
+                const dedupeKey = (regNo || (name + '|' + phone)).toUpperCase();
+
+                if (existingKeys.has(dedupeKey)) { skipped++; continue; }
+
+                const newApplicant = {
+                    id: Date.now() * 1000 + r,
+                    name: name,
+                    regNo: regNo,
+                    programme: getCell(row, 'programme'),
+                    year: getCell(row, 'year'),
+                    phone: phone,
+                    position: mapSheetPosition(getCell(row, 'positionRaw')),
+                    reason: getCell(row, 'reason'),
+                    source: 'GoogleForm',
+                    marks: {}
+                };
+
+                window.applicants.push(newApplicant);
+                existingKeys.add(dedupeKey);
+                added++;
+            }
+
+            window.config.sheetCsvUrl = rawUrl;
+            window.config.lastSync = new Date().toLocaleString();
+
+            if (added > 0) {
+                saveDatabaseState();
+                renderTable();
+                showToast(`Taarifa mpya za waombaji ${added} zimeongezwa kwenye mfumo!`);
+            } else {
+                saveDatabaseState();
+            }
+
+            if (statusEl) {
+                statusEl.innerText = `Waombaji wapya: ${added} | Walioruka (tayari wapo): ${skipped} | Sync ya mwisho: ${window.config.lastSync}`;
+            }
+        } catch (err) {
+            console.error('Google Sheet sync error:', err);
+            if (statusEl) statusEl.innerText = 'Hitilafu: Imeshindwa kusoma Google Sheet. Hakikisha imewekwa "Anyone with the link can view" na link ni sahihi.';
+            if (!silent) showModal('Imeshindwa kusoma Google Sheet. Hakikisha sharing imewekwa "Anyone with the link can view".');
         }
     };
 </script>
