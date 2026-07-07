@@ -432,7 +432,7 @@
                 window.renderTable();
             }
         }
-    }).catch(err => console.log("System running on LocalStorage backup."));
+    }).catch(err => console.error("System running on LocalStorage backup. Cloud read failed - reason:", err.code || err.message || err));
 </script>
 
 <script>
