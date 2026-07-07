@@ -349,24 +349,6 @@
             <button onclick="logout()" class="btn-secondary" style="width: auto;">Exit Panel</button>
         </div>
 
-        <div id="sheetSyncPanel" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.25rem 1.5rem; margin-bottom: 1.5rem;">
-            <h3 style="margin-top: 0; color: #1e293b; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem;">Google Form Responses Sync</h3>
-            <p style="font-size: 0.85rem; color: #64748b; margin-top: 0;">Paste the Google Sheet link where Form responses are collected (must be shared as "Anyone with the link can view"). New responses will be added as applicants without touching marks already entered.</p>
-            <div class="form-grid" style="grid-template-columns: 3fr 1fr 1fr; align-items: end;">
-                <div class="form-group">
-                    <label>Google Sheet Link</label>
-                    <input type="text" id="sheetUrlInput" placeholder="https://docs.google.com/spreadsheets/d/....../edit#gid=......" value="">
-                </div>
-                <div class="form-group">
-                    <button class="btn-secondary" style="width:100%;" onclick="saveSheetUrl()">Save Link</button>
-                </div>
-                <div class="form-group">
-                    <button class="btn-purple" style="width:100%; margin-top:0;" onclick="syncGoogleSheet()">Sync Now</button>
-                </div>
-            </div>
-            <div id="syncStatus" style="font-size: 0.85rem; color: #475569; margin-top: 0.5rem;"></div>
-        </div>
-
         <div id="adminFilters">
             <h3 style="margin-top: 0; color: #1e293b; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem;">Search & Filter Applicants</h3>
             <div class="admin-controls" style="background: white;">
@@ -559,7 +541,6 @@
             document.getElementById('portal-view').classList.remove('section-hidden');
             document.querySelector('.container').style.maxWidth = '100%';
             document.querySelector('.table-responsive').style.overflowX = 'visible';
-            document.getElementById('sheetUrlInput').value = window.config.sheetCsvUrl || '';
             renderTable();
             // Auto-sync silently in the background every time staff open the portal
             if (window.config.sheetCsvUrl) {
@@ -648,26 +629,30 @@
                 </td>
                 <td><em style="color:var(--primary)">${app.position}</em></td>`;
 
-            window.config.columns["Computer Position"].forEach((_, idx) => {
-                let currentVal = app.marks[idx] !== undefined ? app.marks[idx] : '';
-                if (isComp) {
+            const compCols = window.config.columns["Computer Position"];
+            const welCols = window.config.columns["Welcome Position"];
+
+            if (isComp) {
+                compCols.forEach((_, idx) => {
+                    let currentVal = app.marks[idx] !== undefined ? app.marks[idx] : '';
                     // Staff: disable already-entered marks to prevent overwrite
                     let isDisabled = (currentVal !== '') ? 'disabled' : '';
                     rowHtml += `<td><input type="number" min="0" max="100" class="score-input input-app-${app.id}" data-idx="${idx}" value="${currentVal}" ${isDisabled}></td>`;
-                } else {
-                    rowHtml += `<td><input type="text" class="score-input" value="-" disabled></td>`;
+                });
+                // Not-applicable position: one merged cell instead of a gap per column
+                if (welCols.length > 0) {
+                    rowHtml += `<td colspan="${welCols.length}" style="text-align:center;color:#94a3b8;">-</td>`;
                 }
-            });
-
-            window.config.columns["Welcome Position"].forEach((_, idx) => {
-                let currentVal = app.marks[idx] !== undefined ? app.marks[idx] : '';
-                if (!isComp) {
+            } else {
+                if (compCols.length > 0) {
+                    rowHtml += `<td colspan="${compCols.length}" style="text-align:center;color:#94a3b8;">-</td>`;
+                }
+                welCols.forEach((_, idx) => {
+                    let currentVal = app.marks[idx] !== undefined ? app.marks[idx] : '';
                     let isDisabled = (currentVal !== '') ? 'disabled' : '';
                     rowHtml += `<td><input type="number" min="0" max="100" class="score-input input-app-${app.id}" data-idx="${idx}" value="${currentVal}" ${isDisabled}></td>`;
-                } else {
-                    rowHtml += `<td><input type="text" class="score-input" value="-" disabled></td>`;
-                }
-            });
+                });
+            }
 
             rowHtml += `<td style="text-align: center;"><strong>${app.totalMarks}</strong></td>
                 <td style="text-align: center;"><span style="color:var(--success); font-weight:bold">${app.percentage}%</span></td>
@@ -777,24 +762,14 @@
         return rows.filter(r => r.length > 0);
     }
 
-    window.saveSheetUrl = function () {
-        const val = document.getElementById('sheetUrlInput').value.trim();
-        if (!val) {
-            showModal('Please paste the Google Sheet link first.');
-            return;
-        }
-        window.config.sheetCsvUrl = val;
-        saveDatabaseState();
-        showToast('Google Sheet link saved.');
-    };
-
     // Pulls the latest Google Form responses from the linked Sheet and adds
     // any applicant that isn't already in the system yet. Existing
     // applicants (and any marks already entered for them) are left
     // untouched. Pass silent=true to skip the pop-up modal on errors
     // (used for the automatic background sync).
     window.syncGoogleSheet = async function (silent) {
-        const rawUrl = (window.config.sheetCsvUrl || document.getElementById('sheetUrlInput').value || '').trim();
+        const sheetInputEl = document.getElementById('sheetUrlInput');
+        const rawUrl = (window.config.sheetCsvUrl || (sheetInputEl ? sheetInputEl.value : '') || '').trim();
         const statusEl = document.getElementById('syncStatus');
         if (!rawUrl) {
             if (!silent) showModal('Tafadhali weka link ya Google Sheet kwanza.');
