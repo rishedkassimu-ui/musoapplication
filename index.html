@@ -405,7 +405,12 @@
         }).catch(err => console.error("Firebase Sync Error: ", err));
     };
 
-    getDoc(doc(db, "MUSO_System", "DatabaseState")).then((docSnap) => {
+    // Other parts of the app (notably the staff login) await this promise so
+    // they never check a password or render a table against stale/empty
+    // data on a brand-new device where localStorage hasn't been populated
+    // by the cloud yet. It always resolves (never rejects) so the app still
+    // works offline via the LocalStorage backup.
+    window._systemReadyPromise = getDoc(doc(db, "MUSO_System", "DatabaseState")).then((docSnap) => {
         if (docSnap.exists()) {
             const cloudData = docSnap.data();
             if (cloudData.applicants) {
@@ -413,6 +418,13 @@
                 localStorage.setItem('applicants', JSON.stringify(cloudData.applicants));
             }
             if (cloudData.config) {
+                // Guard against an older/partial cloud config that might be
+                // missing the "columns" shape - without this, renderTable()
+                // throws on .map() and the whole table silently stays blank.
+                if (!cloudData.config.columns) cloudData.config.columns = {};
+                if (!Array.isArray(cloudData.config.columns["Computer Position"])) cloudData.config.columns["Computer Position"] = [];
+                if (!Array.isArray(cloudData.config.columns["Welcome Position"])) cloudData.config.columns["Welcome Position"] = [];
+
                 window.config = cloudData.config;
                 localStorage.setItem('sysConfig', JSON.stringify(cloudData.config));
             }
@@ -512,9 +524,10 @@
         if (e.key === 'Enter') submitLogin();
     });
 
-    window.submitLogin = function() {
+    window.submitLogin = async function() {
         const password = document.getElementById('authPassword').value;
         const errorEl = document.getElementById('authError');
+        const submitBtn = document.getElementById('authSubmitBtn');
         errorEl.innerText = '';
 
         if (!password) {
@@ -522,9 +535,21 @@
             return;
         }
 
-        // Re-read config from storage in case it was updated by admin
-        const freshConfig = JSON.parse(localStorage.getItem('sysConfig'));
-        const validPass = freshConfig ? freshConfig.interviewerPass : window.config.interviewerPass;
+        if (submitBtn) { submitBtn.disabled = true; submitBtn.innerText = 'Inapakia mfumo...'; }
+
+        // Wait for the initial cloud fetch to finish (or 6s timeout if offline/slow)
+        // so we never check the password or render the table against stale/empty
+        // local data on a device that hasn't synced yet.
+        if (window._systemReadyPromise) {
+            await Promise.race([
+                window._systemReadyPromise,
+                new Promise(resolve => setTimeout(resolve, 6000))
+            ]);
+        }
+
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.innerText = 'Login'; }
+
+        const validPass = window.config.interviewerPass;
 
         if (password === validPass) {
             currentRole = 'interviewer';
